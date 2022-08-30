@@ -35,3 +35,7 @@ print(images.size())
 print(anno_class_images.size())
 # print(images)
 
+
+print(val_dataset.__getitem__(0)[0])
+print(val_dataset.__getitem__(0)[0][:,:,0])
+print(val_dataset.__getitem__(0)[0][:,:,1])
