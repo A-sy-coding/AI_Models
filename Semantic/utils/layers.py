@@ -80,7 +80,7 @@ class bottleNeckPSP(nn.Module):
         self.cb_3 = conv2DBatchNorm(mid_channels, out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=False)
 
         # skip connection
-        self.cb_residual = conv2DBatchNorm(in_channels, out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=False)
+        self.cb_residual = conv2DBatchNorm(in_channels, out_channels, kernel_size=1, stride=stride, padding=0, dilation=1, bias=False)
 
         self.relu = nn.ReLU(inplace=True)
 
@@ -123,7 +123,7 @@ class PyramidPooling(nn.Module):
     Feature Module에서 나온 output 값이 해당 모듈의 input값으로 들어가게 된다. (2048 * 60 * 60)
     60*60을 6*6, 3*3, 2*2, 1*1로 축소시키고 conv층을 지나간 뒤 다시 upsample을 통해 다시 60*60으로 복원시킨다.
     '''
-    def __init__(self, in_cahnnels, pool_sizes, height, width):
+    def __init__(self, in_channels, pool_sizes, height, width):
         super(PyramidPooling, self).__init__()
 
         self.height = height
@@ -133,37 +133,88 @@ class PyramidPooling(nn.Module):
         out_channels = int(in_channels / len(pool_sizes))
 
         # 합성곱 층 구현 --> pool_sizes : [6, 3, 2, 1]
-        self.avpool_1 = nn.AdaptAvgPool2d(output_size=pool_sizes[0])
+        self.avpool_1 = nn.AdaptiveAvgPool2d(output_size=pool_sizes[0])
         self.cbr_1 = conv2DBatchNormRelu(in_channels, out_channels, kernel_size=1, stride=1, padding=0,
                                         dilation=1, bias=False)
 
-        self.avpool_2 = nn.AdaptAvgPool2d(output_size=pool_sizes[1])                                        
+        self.avpool_2 = nn.AdaptiveAvgPool2d(output_size=pool_sizes[1])                                        
         self.cbr_2 = conv2DBatchNormRelu(in_channels, out_channels,kernel_size=1, stride=1, padding=0,
                                         dilation=1, bias=False)
 
-        self.avpool_3 = nn.AdaptAvgPool2d(output_size=pool_sizes[2])
+        self.avpool_3 = nn.AdaptiveAvgPool2d(output_size=pool_sizes[2])
         self.cbr_3 = conv2DBatchNormRelu(in_channels, out_channels,kernel_size=1, stride=1, padding=0,
                                         dilation=1, bias=False)
-        self.avpool_4 = nn.AdaptAvgPool2d(output_size=pool_sizes[3])
+        self.avpool_4 = nn.AdaptiveAvgPool2d(output_size=pool_sizes[3])
         self.cbr_4 = conv2DBatchNormRelu(in_channels, out_channels,kernel_size=1, stride=1, padding=0,
                                         dilation=1, bias=False)
 
     # 순전파
     def forward(self, x):
         out1 = self.cbr_1(self.avpool_1(x))
-        out1 = F.interpolate(out1, size=(self.height, self.width), mode='bilinear', align_corners=True)
+        out1 = torch.nn.functional.interpolate(out1, size=(self.height, self.width), mode='bilinear', align_corners=True)
 
-        out2 = self.cvr_2(self.avpool_2(x))
-        out2 = F.interpolate(out2, size=(self,height, self.width), mode='bilinear', align_corners=True)
+        out2 = self.cbr_2(self.avpool_2(x))
+        out2 = torch.nn.functional.interpolate(out2, size=(self.height, self.width), mode='bilinear', align_corners=True)
 
         out3 = self.cbr_3(self.avpool_3(x))
-        out3 = F.interpolate(out3, size=(self,height, self.width), mode='bilinear', align_corners=True)
+        out3 = torch.nn.functional.interpolate(out3, size=(self.height, self.width), mode='bilinear', align_corners=True)
 
         out4 = self.cbr_4(self.avpool_4(x))
-        out4 = F.interpolate(out4, size=(self,height, self.width), mode='bilinear', align_corners=True)
+        out4 = torch.nn.functional.interpolate(out4, size=(self.height, self.width), mode='bilinear', align_corners=True)
 
         output = torch.cat([x, out1, out2, out3, out4], dim=1)
 
         return output
+
+#-- Decoder
+
+class DecodePSPFeature(nn.Module):
+    '''
+    pyramid pooling을 통과해서 나온 output (4096*60*60)
+    최종 output이 21 * 475 * 475 
+    Args:
+        height -> output height
+        width -> output width
+        n_classes -> 클래스 분류 개수
+    '''
+    def __init__(self, height, width, n_classes):
+        super(DecodePSPFeature, self).__init__()
+
+        self.height = height
+        self.width = width
+
+        self.cbr = conv2DBatchNormRelu(in_channels=4096, out_channels=512, kernel_size=3, stride=1,
+                                        padding=1, dilation=1, bias=False)
+        self.dropout = nn.Dropout2d(p=0.1)
+        self.classification = nn.Conv2d(in_channels=512, out_channels=n_classes, kernel_size=1, stride=1, padding=0)
+
+    def forward(self, x):
+        x = self.cbr(x)
+        x = self.dropout(x)
+        x = self.classification(x)
+        output = torch.nn.functional.interpolate(x, size=(self.height, self.width), mode='bilinear', align_corners=True)
+
+        return output
+
+#--- AuxLoss module
+class AuxiliaryPSPlayers(nn.Module):
+    def __init__(self, in_channels, height, width, n_classes):
+        super(AuxiliaryPSPlayers, self).__init__()
+
+        self.height = height
+        self.width = width
+
+        self.cbr = conv2DBatchNormRelu(in_channels=in_channels, out_channels=256, kernel_size=3, stride=1,padding=1, dilation=1, bias=False)
+        self.dropout = nn.Dropout2d(p=0.1)
+        self.classification = nn.Conv2d(in_channels=256, out_channels=n_classes, kernel_size=1, stride=1, padding=0)
+
+    def forward(self, x):
+        x = self.cbr(x)
+        x = self.dropout(x)
+        x = self.classification(x)
+        output = torch.nn.functional.interpolate(x, size=(self.height, self.width), mode='bilinear', align_corners=True)
+
+        return output
+
 
 

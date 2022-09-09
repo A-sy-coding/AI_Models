@@ -1,5 +1,6 @@
-from utils import VOCDataset, DataTransform, make_path_list
+from utils import VOCDataset, DataTransform, make_path_list, PSPNet
 import torch.utils.data as data
+import torch
 
 # 이미지, annotation 경로 가져오기
 train_img_list, train_anno_list, val_img_list, val_anno_list = make_path_list('./data/VOCdevkit/VOC2012/')
@@ -39,3 +40,13 @@ print(anno_class_images.size())
 print(val_dataset.__getitem__(0)[0])
 print(val_dataset.__getitem__(0)[0][:,:,0])
 print(val_dataset.__getitem__(0)[0][:,:,1])
+
+net = PSPNet(n_classes=21)
+print(net)
+
+###### dummy test
+batch_size=2
+dummy_img = torch.rand(batch_size, 3, 475, 475)
+print(dummy_img.shape)
+outputs = net(dummy_img)
+print(outputs)

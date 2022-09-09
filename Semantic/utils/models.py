@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.functional as F
+from .layers import FeatureMap_convolution, ResidualBlockPSP, PyramidPooling, DecodePSPFeature, AuxiliaryPSPlayers
 
 class PSPNet(nn.Module):
     '''
@@ -17,7 +18,7 @@ class PSPNet(nn.Module):
         img_size_8 = 60  # 원본 이미지에서 Feature 모듈을 통과하면 channel이 60이 되게 한다.
         
         # 전체 모듈 구조 설정
-        self.feature_conv = FeatureMap.convolution()
+        self.feature_conv = FeatureMap_convolution()
         self.feature_res_1 = ResidualBlockPSP( n_blocks=block_config[0], in_channels=128, mid_channels=64,
                                                 out_channels=256, stride=1, dilation=1)
         self.feature_res_2 = ResidualBlockPSP( n_blocks=block_config[1], in_channels=256, mid_channels=128, 
@@ -27,7 +28,7 @@ class PSPNet(nn.Module):
         self.feature_dilated_res_2 = ResidualBlockPSP( n_blocks=block_config[3], in_channels=1024, mid_channels=512,
                                                         out_channels=2048, stride=1, dilation=4)
 
-        self.pyramid_poolig = PyramidPooling(in_channels=2048, pool_size=[6, 3, 2, 1],
+        self.pyramid_poolig = PyramidPooling(in_channels=2048, pool_sizes=[6, 3, 2, 1],
                                                 height=img_size_8, width=img_size_8)
 
         self.decode_feature = DecodePSPFeature( height=img_size, width=img_size, n_classes=n_classes)
@@ -38,7 +39,7 @@ class PSPNet(nn.Module):
     def forward(self, x):
         x = self.feature_conv(x)
         x = self.feature_res_1(x)
-        x = self.feature_res_@(x)
+        x = self.feature_res_2(x)
         x = self.feature_dilated_res_1(x)
 
         output_aux = self.aux(x)
