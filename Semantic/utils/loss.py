@@ -1,5 +1,6 @@
 import torch.nn as nn
 import torch.functional as F
+from torch.nn.functional import cross_entropy
 import math
 
 #-- 손실함수 정의
@@ -13,8 +14,8 @@ class PSPLoss(nn.Module):
         outputs (tuple) : PSPNet 출력
         targets (list) : 정답 어노테이션 정보
         '''
-        loss = F.cross_entropy(outputs[0], targets, reduction='mean')
-        loss_aux = F.cross_entropy(outputs[1], targets, reduction='mean')
+        loss = cross_entropy(outputs[0], targets, reduction='mean')
+        loss_aux = cross_entropy(outputs[1], targets, reduction='mean')
 
         return loss + self.aux_weight * loss_aux
 

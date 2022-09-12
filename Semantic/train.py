@@ -1,4 +1,4 @@
-from utils import make_path_list, DataTransform, VOCDataset, PSPNet, PSPLoss, lambda_epoch
+from utils import make_path_list, DataTransform, VOCDataset, PSPNet, PSPLoss, lambda_epoch, train_model
 import torch.utils.data as data
 import torch
 import torch.nn as nn
@@ -60,3 +60,6 @@ optimizer = optim.SGD([
 ], momentum=0.9, weight_decay=0.0001)
 
 scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda_epoch)
+
+num_epochs = 10
+train_model(net, dataloaders_dict, criterion, scheduler, optimizer, num_epochs = num_epochs)
